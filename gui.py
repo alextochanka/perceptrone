@@ -618,7 +618,7 @@ class TrainingTab(QWidget):
         <p><b>Поддерживаемые типы реакций:</b></p>
         <ol>
             <li>A → B → C → D (последовательная)</li>
-            <li>A → B → D и A → C → D (разветвленная)</li>
+            <li>A → B и A → C → D (параллельная)</li>
         </ol>
         <p>После обучения модель сможет определять тип реакции по данным концентраций.</p>
         """)
@@ -1000,7 +1000,7 @@ class PredictionTab(QWidget):
         <p><b>Система определяет только два типа реакций:</b></p>
         <ol>
             <li><b>Последовательная:</b> A → B → C → D</li>
-            <li><b>Разветвленная:</b> A → B → D и A → C → D</li>
+            <li><b>Параллельная:</b> A → B и A → C → D</li>
         </ol>
         <p><b>Требования к данным:</b></p>
         <ul>
@@ -1130,7 +1130,7 @@ class PredictionTab(QWidget):
         self.example_sequential_btn.clicked.connect(self.load_sequential_example)
         button_layout.addWidget(self.example_sequential_btn)
 
-        self.example_branched_btn = QPushButton("🌳 Пример: Разветвленная")
+        self.example_branched_btn = QPushButton("🌳 Пример: Параллельная")
         self.example_branched_btn.clicked.connect(self.load_branched_example)
         button_layout.addWidget(self.example_branched_btn)
 
@@ -1207,11 +1207,11 @@ D=0.0,0.0,0.0,0.2,0.3,0.4,0.5,0.7,0.8,1.0"""
             self.c_input.setValue(0.0)
             self.d_input.setValue(0.0)
             self.status_label.setText(
-                "Загружен пример разветвленной реакции (используйте Расширенный ввод для полных данных)")
+                "Загружен пример параллельной реакции (используйте Расширенный ввод для полных данных)")
             self.status_label.setStyleSheet("color: #3498db; font-weight: bold;")
         else:  # Расширенный ввод
             self.data_input.setPlainText(example_data)
-            self.status_label.setText("✅ Загружен пример разветвленной реакции (все значения неотрицательные)")
+            self.status_label.setText("✅ Загружен пример параллельной реакции (все значения неотрицательные)")
             self.status_label.setStyleSheet("color: #27ae60; font-weight: bold;")
 
         self.result_text.clear()
@@ -1829,7 +1829,7 @@ class VisualizationTab(QWidget):
                 ax2.plot(time, conc, label=label, color=color, linewidth=2.5, alpha=0.9)
 
             ax2.set_xlabel('Время', fontsize=11, fontweight='bold')
-            ax2.set_title('Разветвленная реакция\nA → B  и  A → C → D',
+            ax2.set_title('Параллельная\nA → B  и  A → C → D',
                           fontsize=13, fontweight='bold', color='#c0392b')
             ax2.legend(fontsize=9, loc='upper right', framealpha=0.9)
             ax2.grid(True, alpha=0.2, linestyle='--')
@@ -1855,7 +1855,7 @@ class VisualizationTab(QWidget):
 
             # Информационные блоки
             info_text1 = "Последовательная:\n• A превращается в B\n• B превращается в C\n• C превращается в D\n• Все стадии последовательны"
-            info_text2 = "Разветвленная:\n• A распадается на B и C\n• B - конечный продукт\n• C превращается в D\n• Два параллельных пути"
+            info_text2 = "Параллельная:\n• A распадается на B и C\n• B - конечный продукт\n• C превращается в D\n• Два параллельных пути"
 
             ax1.text(0.02, 0.98, info_text1, transform=ax1.transAxes,
                      fontsize=9, verticalalignment='top',
@@ -1866,7 +1866,7 @@ class VisualizationTab(QWidget):
 
             # Добавляем индикаторы максимальных концентраций
             for ax, concs, title_text in [(ax1, concentrations_seq, "Последовательная"),
-                                          (ax2, concentrations_branch, "Разветвленная")]:
+                                          (ax2, concentrations_branch, "Параллельная")]:
                 max_vals = [conc.max() for conc in concs]
                 max_time_idx = [np.argmax(conc) for conc in concs]
                 max_times = [time[idx] for idx in max_time_idx]
@@ -2192,7 +2192,7 @@ class MainWindow(QMainWindow):
         info_layout = QHBoxLayout(info_panel)
 
         # Только информация о типах реакций
-        status_item = "<b>Поддерживаемые типы реакций:</b> 2 (Последовательная, Разветвленная)"
+        status_item = "<b>Поддерживаемые типы реакций:</b> 2 (Последовательная, Параллельная)"
 
         label = QLabel(status_item)
         label.setStyleSheet("padding: 5px 15px;")

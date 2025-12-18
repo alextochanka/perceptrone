@@ -46,7 +46,7 @@ except ImportError:
 
     REACTION_TYPES = {
         'type1': {'name': 'Последовательная A → B → C → D'},
-        'type2': {'name': 'Разветвленная A → B → D и A → C → D'}
+        'type2': {'name': 'Параллельная A → B и A → C → D'}
     }
 
 logger = logging.getLogger(__name__)

@@ -110,7 +110,7 @@ class NeuralNetworkModel:
                 X[i, 12] = np.random.uniform(0.2, 0.4)
                 X[i, 13] = np.random.uniform(0.4, 0.6)
 
-            else:  # Разветвленная реакция A→B→D и A→C→D
+            else:  # Параллельная реакция A→B→D и A→C→D
                 # Признаки для разветвленной реакции
                 X[i, 0] = np.random.uniform(0.8, 1.2)
                 X[i, 1] = np.random.uniform(0.0, 0.1)
