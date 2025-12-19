@@ -264,7 +264,7 @@ class TelegramReactionBot:
                 parse_mode=ParseMode.MARKDOWN
             )
 
-    # ---------- ПОМОЩЬ (CALLBACK) ----------
+    # ---------- ПОМОЩЬ ----------
     async def show_help(self, query, user_id: int):
         self.db.log_action(user_id, "help", "Открыта помощь через callback")
 
