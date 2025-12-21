@@ -451,7 +451,7 @@ class TelegramReactionBot:
                 "D": [max(0, min(1, 0.0 + 0.10 * i * (1 - 0.08 * i))) for i in range(10)]
             }
         else:
-            # Разветвленная реакция с неотрицательными значениями
+            # Параллельнаяреакция с неотрицательными значениями
             concentrations = {
                 "A": [max(0, 1.0 - 0.22 * i) for i in range(10)],
                 "B": [max(0, min(1, 0.0 + 0.11 * i * (1 - 0.22 * i))) for i in range(10)],
