@@ -59,7 +59,7 @@ class ReactionSimulator:
         self.species_names = ['A', 'B', 'C', 'D']
 
     def extract_features(self, concentrations: Dict[str, List[float]]) -> np.ndarray:
-        """Извлечение признаков из концентраций веществ"""
+        """Извлечение признаков из концентраций веществ с нормализацией"""
         features = []
 
         # Базовые статистики для каждого вещества
@@ -90,27 +90,80 @@ class ReactionSimulator:
                 else:
                     features.append(0.0)
 
-        target_features = 20
-        if len(features) > target_features:
-            features = features[:target_features]
-        elif len(features) < target_features:
-            features.extend([0.0] * (target_features - len(features)))
-
-        return np.array(features)
-
-    def analyze_reaction_pattern(self, concentrations: Dict[str, List[float]]) -> Dict[str, Any]:
-        """Анализ паттерна реакции для лучшего предсказания"""
+        # ДОБАВЛЕНЫ КЛЮЧЕВЫЕ ПРИЗНАКИ ДЛЯ УЛУЧШЕНИЯ КЛАССИФИКАЦИИ
         a_vals = concentrations.get('A', [0.0])
         b_vals = concentrations.get('B', [0.0])
         c_vals = concentrations.get('C', [0.0])
         d_vals = concentrations.get('D', [0.0])
 
-        # Анализ для определения типа реакции
+        if len(a_vals) > 1:
+            # 1. Относительное время максимумов B и C
+            if len(b_vals) > 0:
+                b_max_idx = np.argmax(b_vals)
+                b_max_norm = b_max_idx / (len(b_vals) - 1) if len(b_vals) > 1 else 0
+                features.append(b_max_norm)
+            else:
+                features.append(0.0)
+
+            if len(c_vals) > 0:
+                c_max_idx = np.argmax(c_vals)
+                c_max_norm = c_max_idx / (len(c_vals) - 1) if len(c_vals) > 1 else 0
+                features.append(c_max_norm)
+            else:
+                features.append(0.0)
+
+            # 2. Разница во времени максимумов (ключевой признак)
+            if len(b_vals) > 0 and len(c_vals) > 0:
+                time_diff = abs(b_max_norm - c_max_norm)
+                features.append(time_diff)
+
+                # 3. Порядок максимумов (1 если B раньше C, -1 если наоборот)
+                order = 1 if b_max_norm < c_max_norm else -1 if b_max_norm > c_max_norm else 0
+                features.append(float(order))
+            else:
+                features.extend([0.0, 0.0])
+
+            # 4. Отношение максимумов B и C
+            b_max = max(b_vals) if b_vals else 0
+            c_max = max(c_vals) if c_vals else 0
+            if c_max > 0:
+                features.append(b_max / c_max)
+            else:
+                features.append(0.0)
+
+            # 5. Площади под кривыми B и C (аппроксимация)
+            if len(b_vals) > 1:
+                b_area = np.trapz(b_vals, np.linspace(0, 1, len(b_vals)))
+                features.append(b_area)
+            else:
+                features.append(0.0)
+
+            if len(c_vals) > 1:
+                c_area = np.trapz(c_vals, np.linspace(0, 1, len(c_vals)))
+                features.append(c_area)
+            else:
+                features.append(0.0)
+
+        target_features = 20
+        if len(features) > target_features:
+            features = features[:target_features]  # Обрезаем лишние
+        elif len(features) < target_features:
+            features.extend([0.0] * (target_features - len(features)))  # Дополняем нулями
+
+        return np.array(features)
+
+    def analyze_reaction_pattern(self, concentrations: Dict[str, List[float]]) -> Dict[str, Any]:
+        """Анализ паттерна реакции с нормализацией по количеству точек"""
+        a_vals = concentrations.get('A', [0.0])
+        b_vals = concentrations.get('B', [0.0])
+        c_vals = concentrations.get('C', [0.0])
+        d_vals = concentrations.get('D', [0.0])
+
         if len(a_vals) < 2:
             return {'type': 'unknown', 'confidence': 0.5}
 
         # Последовательная реакция: A уменьшается, B появляется и уменьшается, C появляется, D растет
-        # Разветвленная: A уменьшается, B и C появляются одновременно, D растет быстрее
+        # Параллельная: A уменьшается, B и C появляются одновременно, D растет быстрее
 
         # Критерии для последовательной
         a_decrease = a_vals[0] - a_vals[-1]
@@ -118,31 +171,76 @@ class ReactionSimulator:
         c_max_idx = np.argmax(c_vals) if len(c_vals) > 0 else 0
         d_increase = d_vals[-1] - d_vals[0] if len(d_vals) > 1 else 0
 
-        # Проверяем последовательность максимумов
+        # НОРМАЛИЗАЦИЯ: преобразуем индексы в относительное время (0-1)
+        n_points = len(a_vals)
+        if n_points > 1:
+            b_max_norm = b_max_idx / (n_points - 1)  # 0 до 1
+            c_max_norm = c_max_idx / (n_points - 1)  # 0 до 1
+            time_diff_norm = abs(b_max_norm - c_max_norm)
+        else:
+            b_max_norm = 0
+            c_max_norm = 0
+            time_diff_norm = 0
+
+        # Проверяем последовательность максимумов С УЧЕТОМ НОРМАЛИЗАЦИИ
         is_sequential = False
         is_branched = False
 
-        if b_max_idx > 0 and c_max_idx > b_max_idx and d_increase > 0:
-            # B достигает максимума раньше C
+        # Критерий для последовательной: B заметно раньше C (>20% от общего времени)
+        if (b_max_idx > 0 and c_max_idx > b_max_idx and d_increase > 0 and
+            (c_max_norm - b_max_norm) > 0.2):  # Увеличили порог
             is_sequential = True
 
-        if b_max_idx > 0 and c_max_idx > 0 and abs(b_max_idx - c_max_idx) < 3 and d_increase > 0:
-            # B и C достигают максимума примерно одновременно
+        # Критерий для параллельной: B и C примерно одновременно (<15% разницы)
+        if (b_max_idx > 0 and c_max_idx > 0 and d_increase > 0 and
+            time_diff_norm < 0.15):  # Адаптивный порог
             is_branched = True
 
+        # Принятие решения с приоритетом
         if is_sequential and not is_branched:
-            return {'type': 'type1', 'confidence': 0.85}
+            confidence = min(0.9, 0.7 + (c_max_norm - b_max_norm) * 1.5)
+            return {
+                'type': 'type1',
+                'confidence': confidence,
+                'b_max_norm': b_max_norm,
+                'c_max_norm': c_max_norm,
+                'time_diff': time_diff_norm
+            }
         elif is_branched and not is_sequential:
-            return {'type': 'type2', 'confidence': 0.85}
+            confidence = min(0.9, 0.7 + (0.15 - time_diff_norm) * 3)
+            return {
+                'type': 'type2',
+                'confidence': confidence,
+                'b_max_norm': b_max_norm,
+                'c_max_norm': c_max_norm,
+                'time_diff': time_diff_norm
+            }
         else:
-            # Если оба или ни один, используем эвристику
+            # Если оба или ни один, используем дополнительные эвристики
             b_max = max(b_vals) if b_vals else 0
             c_max = max(c_vals) if c_vals else 0
 
-            if b_max > 0.1 and c_max > 0.1 and abs(b_max - c_max) < 0.05:
-                return {'type': 'type2', 'confidence': 0.7}
+            # Параллельные реакции: B и C имеют сравнимые максимумы
+            if b_max > 0.1 and c_max > 0.1 and abs(b_max - c_max) < max(b_max, c_max) * 0.3:
+                # Относительная разница менее 30%
+                confidence = 0.7 if time_diff_norm < 0.25 else 0.6
+                return {
+                    'type': 'type2',
+                    'confidence': confidence,
+                    'b_max_norm': b_max_norm,
+                    'c_max_norm': c_max_norm,
+                    'time_diff': time_diff_norm
+                }
             else:
-                return {'type': 'type1', 'confidence': 0.7}
+                # Последовательная по умолчанию
+                confidence = 0.7 if b_max_norm < c_max_norm else 0.6
+                return {
+                    'type': 'type1',
+                    'confidence': confidence,
+                    'b_max_norm': b_max_norm,
+                    'c_max_norm': c_max_norm,
+                    'time_diff': time_diff_norm
+                }
 
 
 class ReactionBot:
@@ -332,7 +430,13 @@ class ReactionBot:
                     'confidence': pattern_analysis['confidence'],
                     'type_name': REACTION_TYPES.get(pattern_analysis['type'], {}).get('name', 'Неизвестный тип'),
                     'method': 'heuristic',
-                    'data_quality': 'processed'  # Добавляем информацию о качестве данных
+                    'data_quality': 'processed',
+                    'analysis_details': {
+                        'points_analyzed': len(time_points),
+                        'b_max_norm': pattern_analysis.get('b_max_norm', 0),
+                        'c_max_norm': pattern_analysis.get('c_max_norm', 0),
+                        'time_diff': pattern_analysis.get('time_diff', 0)
+                    }
                 }
             else:
                 # Извлечение признаков из нормализованных данных
@@ -365,17 +469,26 @@ class ReactionBot:
                     type_name = type_info.get('name', 'Неизвестный тип')
 
                     # Сравниваем с эвристикой для повышения уверенности
+                    # ЕСЛИ РЕЗУЛЬТАТЫ СОВПАДАЮТ - повышаем уверенность
                     if pattern_analysis['type'] == reaction_code:
-                        confidence = max(confidence, pattern_analysis['confidence'] * 1.1)
-                        method = 'combined'
+                        combined_confidence = max(confidence, pattern_analysis['confidence'])
+                        # Если оба метода уверены - дополнительный бонус
+                        if confidence > 0.7 and pattern_analysis['confidence'] > 0.7:
+                            combined_confidence = min(1.0, combined_confidence + 0.05)
+                        confidence = combined_confidence
+                        method = 'combined_agreement'
                     else:
-                        # Если методы расходятся, берем среднее с весами
-                        model_weight = 0.7 if confidence > 0.7 else 0.5
+                        # Если методы расходятся - используем взвешенное среднее
+                        # Больше веса модели, если она хорошо обучена
+                        model_weight = 0.7 if confidence > 0.8 else 0.6
                         heuristic_weight = 1 - model_weight
                         confidence = (confidence * model_weight +
                                       pattern_analysis['confidence'] * heuristic_weight)
-                        method = 'weighted_average'
-                        logger.info(f"Методы расходятся: модель={reaction_code}, эвристика={pattern_analysis['type']}")
+                        method = 'weighted_disagreement'
+
+                        # Логируем расхождение для анализа
+                        logger.info(f"Методы расходятся: модель={reaction_code}({confidence:.2f}), "
+                                  f"эвристика={pattern_analysis['type']}({pattern_analysis['confidence']:.2f})")
 
                     result = {
                         'status': 'success',
@@ -383,7 +496,17 @@ class ReactionBot:
                         'confidence': confidence,
                         'type_name': type_name,
                         'method': method,
-                        'data_quality': 'processed'
+                        'data_quality': 'processed',
+                        'analysis_details': {
+                            'model_prediction': reaction_code,
+                            'heuristic_prediction': pattern_analysis['type'],
+                            'model_confidence': float(probability[0][prediction[0]]),
+                            'heuristic_confidence': pattern_analysis['confidence'],
+                            'points_analyzed': len(time_points),
+                            'b_max_norm': pattern_analysis.get('b_max_norm', 0),
+                            'c_max_norm': pattern_analysis.get('c_max_norm', 0),
+                            'time_diff': pattern_analysis.get('time_diff', 0)
+                        }
                     }
 
                 except Exception as model_error:
@@ -392,11 +515,19 @@ class ReactionBot:
                     result = {
                         'status': 'success',
                         'reaction_type': pattern_analysis['type'],
-                        'confidence': pattern_analysis['confidence'] * 0.9,
+                        'confidence': pattern_analysis['confidence'] * 0.9,  # Чуть уменьшаем уверенность
                         'type_name': REACTION_TYPES.get(pattern_analysis['type'], {}).get('name', 'Неизвестный тип'),
                         'method': 'heuristic_fallback',
                         'data_quality': 'processed',
-                        'model_error': str(model_error)
+                        'model_error': str(model_error),
+                        'analysis_details': {
+                            'fallback_reason': 'model_error',
+                            'heuristic_confidence': pattern_analysis['confidence'],
+                            'points_analyzed': len(time_points),
+                            'b_max_norm': pattern_analysis.get('b_max_norm', 0),
+                            'c_max_norm': pattern_analysis.get('c_max_norm', 0),
+                            'time_diff': pattern_analysis.get('time_diff', 0)
+                        }
                     }
 
             # ================== СОХРАНЕНИЕ В БАЗУ ДАННЫХ ==================
@@ -457,14 +588,30 @@ class ReactionBot:
             # Добавляем информацию о качестве предсказания
             if confidence > 0.8:
                 result['quality'] = 'high'
+                quality_emoji = '🔵'
             elif confidence > 0.6:
                 result['quality'] = 'medium'
+                quality_emoji = '🟡'
             else:
                 result['quality'] = 'low'
+                quality_emoji = '🔴'
                 logger.warning(f"Низкая уверенность предсказания: {confidence:.2%}")
 
+            # Добавляем метаданные анализа
+            result['analysis_timestamp'] = datetime.now().isoformat()
+            result['quality_emoji'] = quality_emoji
+
+            # Определяем эмодзи для типа реакции
+            if result.get('reaction_type') == 'type1':
+                result['reaction_emoji'] = '➡️'
+            elif result.get('reaction_type') == 'type2':
+                result['reaction_emoji'] = '🌳'
+            else:
+                result['reaction_emoji'] = '❓'
+
             # Логируем успешное завершение
-            logger.info(f"✅ Предсказание завершено: {result.get('type_name')}, уверенность: {confidence:.2%}")
+            logger.info(f"✅ Предсказание завершено: {result.get('type_name')}, "
+                       f"уверенность: {confidence:.2%}, качество: {result.get('quality')}")
 
             return result
 
